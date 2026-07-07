@@ -68,47 +68,8 @@ window.toggleChatWindow = function() {
     const win = document.getElementById('chat-window');
     if (win) win.classList.toggle('hidden');
     if (win && !win.classList.contains('hidden')) {
-        // نتحقق من وجود بيانات الزائر
         loadChatMessages();
     }
-};
-
-window.loadChatMessages = async function() {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-    const chatRef = doc(chatsCollectionRef, userId);
-    const chatSnap = await getDoc(chatRef);
-    
-    const infoForm = document.getElementById('chat-info-form');
-    const messagesArea = document.getElementById('chat-messages-area');
-    
-    if (chatSnap.exists() && chatSnap.data().visitorName) {
-        // توجد بيانات
-        if (infoForm) infoForm.classList.add('hidden');
-        if (messagesArea) messagesArea.classList.remove('hidden');
-    } else {
-        // لا توجد بيانات
-        if (infoForm) infoForm.classList.remove('hidden');
-        if (messagesArea) messagesArea.classList.add('hidden');
-        return; // لا نحمّل الرسائل
-    }
-
-    if (unsubscribeUserChat) unsubscribeUserChat();
-    unsubscribeUserChat = onSnapshot(collection(chatRef, 'messages'), (snapshot) => {
-        const messagesDiv = document.getElementById('chat-messages');
-        if (!messagesDiv) return;
-        messagesDiv.innerHTML = '';
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') {
-                const msg = change.doc.data();
-                const div = document.createElement('div');
-                div.className = `flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`;
-                div.innerHTML = `<div class="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs ${msg.sender === 'user' ? 'bg-primary-500 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200'}">${msg.text}</div>`;
-                messagesDiv.appendChild(div);
-            }
-        });
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, (error) => console.error("خطأ في تحميل رسائل الشات:", error));
 };
 
 window.submitVisitorInfo = async function() {
@@ -120,10 +81,7 @@ window.submitVisitorInfo = async function() {
         return;
     }
     const userId = getCurrentUserId();
-    if (!userId) {
-        showToast('حدث خطأ، يرجى تحديث الصفحة', 'error');
-        return;
-    }
+    if (!userId) return;
     const chatRef = doc(chatsCollectionRef, userId);
     await setDoc(chatRef, { 
         userId, 
@@ -138,6 +96,46 @@ window.submitVisitorInfo = async function() {
     document.getElementById('chat-messages-area').classList.remove('hidden');
     loadChatMessages();
     showToast('تم تسجيل بياناتك، أهلاً بك', 'success');
+};
+
+window.loadChatMessages = async function() {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    const chatRef = doc(chatsCollectionRef, userId);
+    const chatSnap = await getDoc(chatRef);
+    
+    if (chatSnap.exists() && chatSnap.data().visitorName) {
+        document.getElementById('chat-info-form').classList.add('hidden');
+        document.getElementById('chat-messages-area').classList.remove('hidden');
+    } else {
+        document.getElementById('chat-info-form').classList.remove('hidden');
+        document.getElementById('chat-messages-area').classList.add('hidden');
+        return;
+    }
+
+    if (unsubscribeUserChat) unsubscribeUserChat();
+    unsubscribeUserChat = onSnapshot(collection(chatRef, 'messages'), (snapshot) => {
+        const messagesDiv = document.getElementById('chat-messages');
+        if (!messagesDiv) return;
+        const messages = [];
+        snapshot.forEach(docSnap => {
+            messages.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        // ترتيب تصاعدي حسب timestamp
+        messages.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis?.() || 0;
+            const timeB = b.timestamp?.toMillis?.() || 0;
+            return timeA - timeB;
+        });
+        messagesDiv.innerHTML = '';
+        messages.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            div.innerHTML = `<div class="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs ${msg.sender === 'user' ? 'bg-primary-500 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200'}">${msg.text}</div>`;
+            messagesDiv.appendChild(div);
+        });
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }, (error) => console.error("خطأ في تحميل رسائل الشات:", error));
 };
 
 window.sendChatMessage = async function() {
@@ -165,20 +163,30 @@ window.loadAdminChatList = function() {
     const listDiv = document.getElementById('admin-chat-list');
     if (!listDiv) return;
     onSnapshot(chatsCollectionRef, (snapshot) => {
-        listDiv.innerHTML = '';
+        const chats = [];
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
+            chats.push({ id: docSnap.id, ...data });
+        });
+        // ترتيب تنازلي حسب timestamp (الأحدث أولاً)
+        chats.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis?.() || 0;
+            const timeB = b.timestamp?.toMillis?.() || 0;
+            return timeB - timeA;
+        });
+        listDiv.innerHTML = '';
+        chats.forEach(chat => {
             const div = document.createElement('div');
-            div.className = `p-2 rounded-lg cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-xs ${selectedChatId === docSnap.id ? 'bg-primary-100 dark:bg-primary-900' : ''}`;
+            div.className = `p-2 rounded-lg cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-xs ${selectedChatId === chat.id ? 'bg-primary-100 dark:bg-primary-900' : ''}`;
             div.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <span class="font-bold">${data.visitorName || 'زائر'}</span>
-                    <button onclick="event.stopPropagation(); deleteChat('${docSnap.id}')" class="text-red-500 hover:text-red-700 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
+                    <span class="font-bold">${chat.visitorName || 'زائر'}</span>
+                    <button onclick="event.stopPropagation(); deleteChat('${chat.id}')" class="text-red-500 hover:text-red-700 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
-                <div class="text-[9px] text-stone-400">${data.visitorEmail || ''} | ${data.visitorPhone || ''}</div>
-                <span class="text-stone-400 text-[10px]">${data.lastMessage || ''}</span>
+                <div class="text-[9px] text-stone-400">${chat.visitorEmail || ''} | ${chat.visitorPhone || ''}</div>
+                <span class="text-stone-400 text-[10px]">${chat.lastMessage || ''}</span>
             `;
-            div.onclick = () => openAdminChat(docSnap.id);
+            div.onclick = () => openAdminChat(chat.id);
             listDiv.appendChild(div);
         });
     });
@@ -201,26 +209,36 @@ window.deleteChat = async function(chatId) {
         await deleteDoc(chatRef);
         showToast('تم حذف المحادثة', 'success');
         loadAdminChatList();
+        if (selectedChatId === chatId) {
+            selectedChatId = null;
+            document.getElementById('admin-chat-header').innerText = 'اختر محادثة';
+            document.getElementById('admin-chat-messages').innerHTML = '';
+            if (adminChatUnsubscribe) adminChatUnsubscribe();
+        }
     });
 };
 
-window.openAdminChat = function(chatId) {
+window.openAdminChat = async function(chatId) {
     selectedChatId = chatId;
-    // تحديث العنوان باسم الزائر
-    const chatRef = doc(chatsCollectionRef, chatId);
-    getDoc(chatRef).then(docSnap => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            document.getElementById('admin-chat-header').innerText = `محادثة مع ${data.visitorName || chatId}`;
-        }
-    });
+    const chatSnap = await getDoc(doc(chatsCollectionRef, chatId));
+    const data = chatSnap.exists() ? chatSnap.data() : {};
+    document.getElementById('admin-chat-header').innerText = `محادثة مع ${data.visitorName || chatId}`;
     const messagesDiv = document.getElementById('admin-chat-messages');
     messagesDiv.innerHTML = '';
     if (adminChatUnsubscribe) adminChatUnsubscribe();
     adminChatUnsubscribe = onSnapshot(collection(doc(chatsCollectionRef, chatId), 'messages'), (snapshot) => {
-        messagesDiv.innerHTML = '';
+        const messages = [];
         snapshot.forEach(docSnap => {
-            const msg = docSnap.data();
+            messages.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        // ترتيب تصاعدي حسب timestamp (الأقدم أولاً)
+        messages.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis?.() || 0;
+            const timeB = b.timestamp?.toMillis?.() || 0;
+            return timeA - timeB;
+        });
+        messagesDiv.innerHTML = '';
+        messages.forEach(msg => {
             const div = document.createElement('div');
             div.className = `flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`;
             div.innerHTML = `<div class="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs ${msg.sender === 'admin' ? 'bg-primary-500 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200'}">${msg.text}</div>`;
@@ -243,8 +261,7 @@ window.sendAdminReply = async function() {
     input.value = '';
 };
 
-// ---- باقي دوال المنتجات والعروض والإدارة (كاملة) ----
-// (نفس الكود السابق، لم يتغير)
+// ---- دوال المنتجات والعروض والإدارة (كاملة) ----
 window.toggleOfferDetails = function() {
     const checked = document.getElementById('prod-is-offer').checked;
     document.getElementById('offer-details').classList.toggle('hidden', !checked);
