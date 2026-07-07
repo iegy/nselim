@@ -1,7 +1,7 @@
 // firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyANq5RBZtNOTKM_gJXG9fx20wB3qMPtu78",
@@ -68,6 +68,7 @@ window.toggleChatWindow = function() {
     const win = document.getElementById('chat-window');
     if (win) win.classList.toggle('hidden');
     if (win && !win.classList.contains('hidden')) {
+        // نتحقق من وجود بيانات الزائر
         loadChatMessages();
     }
 };
@@ -77,9 +78,21 @@ window.loadChatMessages = async function() {
     if (!userId) return;
     const chatRef = doc(chatsCollectionRef, userId);
     const chatSnap = await getDoc(chatRef);
-    if (!chatSnap.exists()) {
-        await setDoc(chatRef, { userId, userName: 'زائر', lastMessage: '', timestamp: new Date() });
+    
+    const infoForm = document.getElementById('chat-info-form');
+    const messagesArea = document.getElementById('chat-messages-area');
+    
+    if (chatSnap.exists() && chatSnap.data().visitorName) {
+        // توجد بيانات
+        if (infoForm) infoForm.classList.add('hidden');
+        if (messagesArea) messagesArea.classList.remove('hidden');
+    } else {
+        // لا توجد بيانات
+        if (infoForm) infoForm.classList.remove('hidden');
+        if (messagesArea) messagesArea.classList.add('hidden');
+        return; // لا نحمّل الرسائل
     }
+
     if (unsubscribeUserChat) unsubscribeUserChat();
     unsubscribeUserChat = onSnapshot(collection(chatRef, 'messages'), (snapshot) => {
         const messagesDiv = document.getElementById('chat-messages');
@@ -98,6 +111,35 @@ window.loadChatMessages = async function() {
     }, (error) => console.error("خطأ في تحميل رسائل الشات:", error));
 };
 
+window.submitVisitorInfo = async function() {
+    const name = document.getElementById('chat-visitor-name').value.trim();
+    const email = document.getElementById('chat-visitor-email').value.trim();
+    const phone = document.getElementById('chat-visitor-phone').value.trim();
+    if (!name || !email || !phone) {
+        showToast('يرجى ملء جميع الحقول', 'warning');
+        return;
+    }
+    const userId = getCurrentUserId();
+    if (!userId) {
+        showToast('حدث خطأ، يرجى تحديث الصفحة', 'error');
+        return;
+    }
+    const chatRef = doc(chatsCollectionRef, userId);
+    await setDoc(chatRef, { 
+        userId, 
+        visitorName: name, 
+        visitorEmail: email, 
+        visitorPhone: phone, 
+        lastMessage: '', 
+        timestamp: new Date(),
+        unread: true
+    }, { merge: true });
+    document.getElementById('chat-info-form').classList.add('hidden');
+    document.getElementById('chat-messages-area').classList.remove('hidden');
+    loadChatMessages();
+    showToast('تم تسجيل بياناتك، أهلاً بك', 'success');
+};
+
 window.sendChatMessage = async function() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
@@ -107,7 +149,14 @@ window.sendChatMessage = async function() {
     const chatRef = doc(chatsCollectionRef, userId);
     const messagesRef = collection(chatRef, 'messages');
     await addDoc(messagesRef, { text, sender: 'user', timestamp: new Date() });
-    await updateDoc(chatRef, { lastMessage: text, timestamp: new Date(), unread: true });
+    const chatSnap = await getDoc(chatRef);
+    const data = chatSnap.data();
+    await updateDoc(chatRef, { 
+        lastMessage: text, 
+        timestamp: new Date(), 
+        unread: true,
+        visitorName: data.visitorName || 'زائر'
+    });
     input.value = '';
 };
 
@@ -121,16 +170,50 @@ window.loadAdminChatList = function() {
             const data = docSnap.data();
             const div = document.createElement('div');
             div.className = `p-2 rounded-lg cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-xs ${selectedChatId === docSnap.id ? 'bg-primary-100 dark:bg-primary-900' : ''}`;
-            div.innerHTML = `<span class="font-bold">${data.userName || 'زائر'}</span><br><span class="text-stone-400 text-[10px]">${data.lastMessage || ''}</span>`;
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <span class="font-bold">${data.visitorName || 'زائر'}</span>
+                    <button onclick="event.stopPropagation(); deleteChat('${docSnap.id}')" class="text-red-500 hover:text-red-700 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <div class="text-[9px] text-stone-400">${data.visitorEmail || ''} | ${data.visitorPhone || ''}</div>
+                <span class="text-stone-400 text-[10px]">${data.lastMessage || ''}</span>
+            `;
             div.onclick = () => openAdminChat(docSnap.id);
             listDiv.appendChild(div);
         });
     });
 };
 
+window.deleteChat = async function(chatId) {
+    if (!auth.currentUser || auth.currentUser.isAnonymous) {
+        showToast('يجب تسجيل الدخول كمسؤول', 'error');
+        return;
+    }
+    showConfirmModal('حذف المحادثة', 'سيتم حذف جميع رسائل هذه المحادثة. هل أنت متأكد؟', async () => {
+        const chatRef = doc(chatsCollectionRef, chatId);
+        const messagesRef = collection(chatRef, 'messages');
+        const snapshot = await getDocs(messagesRef);
+        const batch = writeBatch(db);
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        await deleteDoc(chatRef);
+        showToast('تم حذف المحادثة', 'success');
+        loadAdminChatList();
+    });
+};
+
 window.openAdminChat = function(chatId) {
     selectedChatId = chatId;
-    document.getElementById('admin-chat-header').innerText = `محادثة مع ${chatId}`;
+    // تحديث العنوان باسم الزائر
+    const chatRef = doc(chatsCollectionRef, chatId);
+    getDoc(chatRef).then(docSnap => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            document.getElementById('admin-chat-header').innerText = `محادثة مع ${data.visitorName || chatId}`;
+        }
+    });
     const messagesDiv = document.getElementById('admin-chat-messages');
     messagesDiv.innerHTML = '';
     if (adminChatUnsubscribe) adminChatUnsubscribe();
@@ -160,7 +243,8 @@ window.sendAdminReply = async function() {
     input.value = '';
 };
 
-// ---- دوال المنتجات والعروض والإدارة (كاملة) ----
+// ---- باقي دوال المنتجات والعروض والإدارة (كاملة) ----
+// (نفس الكود السابق، لم يتغير)
 window.toggleOfferDetails = function() {
     const checked = document.getElementById('prod-is-offer').checked;
     document.getElementById('offer-details').classList.toggle('hidden', !checked);
