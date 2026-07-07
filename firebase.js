@@ -1,7 +1,7 @@
 // firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, setDoc, getDoc, getDocs, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyANq5RBZtNOTKM_gJXG9fx20wB3qMPtu78",
@@ -114,21 +114,14 @@ window.loadChatMessages = async function() {
     }
 
     if (unsubscribeUserChat) unsubscribeUserChat();
-    unsubscribeUserChat = onSnapshot(collection(chatRef, 'messages'), (snapshot) => {
+    const messagesRef = collection(chatRef, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    unsubscribeUserChat = onSnapshot(q, (snapshot) => {
         const messagesDiv = document.getElementById('chat-messages');
         if (!messagesDiv) return;
-        const messages = [];
-        snapshot.forEach(docSnap => {
-            messages.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        // ترتيب تصاعدي حسب timestamp
-        messages.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis?.() || 0;
-            const timeB = b.timestamp?.toMillis?.() || 0;
-            return timeA - timeB;
-        });
         messagesDiv.innerHTML = '';
-        messages.forEach(msg => {
+        snapshot.forEach(docSnap => {
+            const msg = docSnap.data();
             const div = document.createElement('div');
             div.className = `flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`;
             div.innerHTML = `<div class="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs ${msg.sender === 'user' ? 'bg-primary-500 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200'}">${msg.text}</div>`;
@@ -162,31 +155,22 @@ window.sendChatMessage = async function() {
 window.loadAdminChatList = function() {
     const listDiv = document.getElementById('admin-chat-list');
     if (!listDiv) return;
-    onSnapshot(chatsCollectionRef, (snapshot) => {
-        const chats = [];
+    const q = query(chatsCollectionRef, orderBy('timestamp', 'desc'));
+    onSnapshot(q, (snapshot) => {
+        listDiv.innerHTML = '';
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            chats.push({ id: docSnap.id, ...data });
-        });
-        // ترتيب تنازلي حسب timestamp (الأحدث أولاً)
-        chats.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis?.() || 0;
-            const timeB = b.timestamp?.toMillis?.() || 0;
-            return timeB - timeA;
-        });
-        listDiv.innerHTML = '';
-        chats.forEach(chat => {
             const div = document.createElement('div');
-            div.className = `p-2 rounded-lg cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-xs ${selectedChatId === chat.id ? 'bg-primary-100 dark:bg-primary-900' : ''}`;
+            div.className = `p-2 rounded-lg cursor-pointer hover:bg-stone-100 dark:hover:bg-stone-800 text-xs ${selectedChatId === docSnap.id ? 'bg-primary-100 dark:bg-primary-900' : ''}`;
             div.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <span class="font-bold">${chat.visitorName || 'زائر'}</span>
-                    <button onclick="event.stopPropagation(); deleteChat('${chat.id}')" class="text-red-500 hover:text-red-700 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
+                    <span class="font-bold">${data.visitorName || 'زائر'}</span>
+                    <button onclick="event.stopPropagation(); deleteChat('${docSnap.id}')" class="text-red-500 hover:text-red-700 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
-                <div class="text-[9px] text-stone-400">${chat.visitorEmail || ''} | ${chat.visitorPhone || ''}</div>
-                <span class="text-stone-400 text-[10px]">${chat.lastMessage || ''}</span>
+                <div class="text-[9px] text-stone-400">${data.visitorEmail || ''} | ${data.visitorPhone || ''}</div>
+                <span class="text-stone-400 text-[10px]">${data.lastMessage || ''}</span>
             `;
-            div.onclick = () => openAdminChat(chat.id);
+            div.onclick = () => openAdminChat(docSnap.id);
             listDiv.appendChild(div);
         });
     });
@@ -226,19 +210,12 @@ window.openAdminChat = async function(chatId) {
     const messagesDiv = document.getElementById('admin-chat-messages');
     messagesDiv.innerHTML = '';
     if (adminChatUnsubscribe) adminChatUnsubscribe();
-    adminChatUnsubscribe = onSnapshot(collection(doc(chatsCollectionRef, chatId), 'messages'), (snapshot) => {
-        const messages = [];
-        snapshot.forEach(docSnap => {
-            messages.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        // ترتيب تصاعدي حسب timestamp (الأقدم أولاً)
-        messages.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis?.() || 0;
-            const timeB = b.timestamp?.toMillis?.() || 0;
-            return timeA - timeB;
-        });
+    const messagesRef = collection(doc(chatsCollectionRef, chatId), 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    adminChatUnsubscribe = onSnapshot(q, (snapshot) => {
         messagesDiv.innerHTML = '';
-        messages.forEach(msg => {
+        snapshot.forEach(docSnap => {
+            const msg = docSnap.data();
             const div = document.createElement('div');
             div.className = `flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`;
             div.innerHTML = `<div class="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs ${msg.sender === 'admin' ? 'bg-primary-500 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200'}">${msg.text}</div>`;
@@ -261,7 +238,7 @@ window.sendAdminReply = async function() {
     input.value = '';
 };
 
-// ---- دوال المنتجات والعروض والإدارة (كاملة) ----
+// ---- دوال المنتجات والعروض والإدارة ----
 window.toggleOfferDetails = function() {
     const checked = document.getElementById('prod-is-offer').checked;
     document.getElementById('offer-details').classList.toggle('hidden', !checked);
