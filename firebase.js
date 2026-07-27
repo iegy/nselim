@@ -52,9 +52,14 @@ function generateLocalId(prefix = 'id') {
 
 function extractYouTubeId(url) {
     if (!url) return null;
+    
+    // إذا قام المستخدم بإدخال المعرف (ID) مباشرة
     if (/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) return url.trim();
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    
+    // التعبير النمطي (Regex) المحدث ليدعم الروابط العادية وروابط الشورتس
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const match = url.match(regex);
+    
     return match ? match[1] : null;
 }
 
