@@ -547,7 +547,7 @@ function renderAdminMediaList() {
     window.mediaItems.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'flex justify-between items-center bg-white dark:bg-dark-900 p-2 rounded-lg border border-stone-200 dark:border-stone-800 text-xs';
-        div.innerHTML = `<span>${item.title} (${item.type === 'image' ? 'صورة' : 'فيديو'})</span><button onclick="deleteMediaItem(${index})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>`;
+        div.innerHTML = `<span>${item.title} (${item.type === 'image' ? 'صورة' : (item.type === 'shorts' ? 'شورتس' : 'فيديو')})</span><button onclick="deleteMediaItem(${index})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>`;
         list.appendChild(div);
     });
 }
