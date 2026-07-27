@@ -707,11 +707,15 @@ function renderUI() {
             card.className = 'bg-white dark:bg-dark-900 rounded-2xl overflow-hidden border border-stone-200 dark:border-stone-800 shadow-sm hover-lift';
             if (item.type === 'image') {
                 card.innerHTML = `<img src="${item.url}" alt="${item.title}" class="w-full h-64 object-cover cursor-zoom-in" loading="lazy" onclick="openImageViewer('${item.url}')" /><div class="p-3 text-xs font-bold">${item.title}</div>`;
-            } else if (item.type === 'video') {
-                const videoId = extractYouTubeId(item.url);
-                const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : item.url;
-                card.innerHTML = `<div class="video-container"><iframe src="${embedUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div><div class="p-3 text-xs font-bold">${item.title}</div>`;
-            }
+           } else if (item.type === 'video' || item.type === 'shorts') {
+    const videoId = extractYouTubeId(item.url);
+    const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : item.url;
+    
+    // تحديد الكلاس بناءً على النوع (عادي أو شورتس)
+    const containerClass = item.type === 'shorts' ? 'shorts-container' : 'video-container';
+    
+    card.innerHTML = `<div class="${containerClass}"><iframe src="${embedUrl}" frameborder="0" allowfullscreen loading="lazy"></iframe></div><div class="p-3 text-xs font-bold">${item.title}</div>`;
+}
             galleryGrid.appendChild(card);
         });
     }
