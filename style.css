@@ -43,6 +43,8 @@ body { font-family: 'Cairo', 'Poppins', sans-serif; transition: background-color
 }
 .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; }
 .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.shorts-container { position: relative; padding-bottom: 177.77%; height: 0; overflow: hidden; }
+.shorts-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 #gallery-page { display: none; }
 #main-content { display: block; }
 .modal-enter { animation: modalFadeIn 0.3s ease-out; }
