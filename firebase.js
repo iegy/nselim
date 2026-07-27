@@ -52,13 +52,13 @@ function generateLocalId(prefix = 'id') {
 
 function extractYouTubeId(url) {
     if (!url) return null;
+    url = url.trim();
     
-    // إذا قام المستخدم بإدخال المعرف (ID) مباشرة
-    if (/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) return url.trim();
+    // لو تم إدخال الـ ID مباشرة (مكون من 11 حرف أو رقم)
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
     
-    // التعبير النمطي (Regex) المحدث ليدعم الروابط العادية وروابط الشورتس
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
+    // استخراج الـ ID من أي رابط يوتيوب (عادي أو شورتس) وتجاهل أي زيادات في الرابط
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|.*[?&]v=))([\w-]{11})/i);
     
     return match ? match[1] : null;
 }
