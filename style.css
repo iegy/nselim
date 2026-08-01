@@ -63,31 +63,9 @@ body { font-family: 'Cairo', 'Poppins', sans-serif; transition: background-color
 #mobile-menu { transition: all 0.3s ease; }
 #mobile-menu.hidden { display: none; }
 #mobile-menu:not(.hidden) { display: block; }
+
+/* معرض الصور والفيديوهات: واجهة نقر لتحميل فيديو يوتيوب بدل تحميله تلقائياً */
 .gallery-video-facade { background-size: cover; background-position: center; background-color: #1a1a20; }
 .gallery-card { animation: galleryCardIn 0.4s ease both; }
 @keyframes galleryCardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 #gallery-load-more-wrap:empty { display: none; }
-/* إصلاح مشكلة تداخل عناصر المنتجات فوق المودال */
-#product-modal {
-    z-index: 99999 !important;
-}
-/* تنسيق زر طلب التسعيرة في الكروت ليتناسب مع الوضعين الفاتح والليلي */
-.product-card-item a.bg-stone-100,
-.product-card-item a[href*="wa.me"] {
-    background-color: #f5f5f4 !important;
-    color: #1c1917 !important;
-}
-
-.dark .product-card-item a.bg-stone-100,
-.dark .product-card-item a[href*="wa.me"] {
-    background-color: #292524 !important; /* لون غامق متناسق مع الخلفية الليلية */
-    color: #f5f5f4 !important; /* نص أبيض واضح */
-}
-
-.dark .product-card-item a[href*="wa.me"]:hover {
-    background-color: #ff6600 !important; /* لون البراند عند تمرير الماوس */
-    color: #ffffff !important;
-}
-#image-viewer-modal {
-    z-index: 99999 !important;
-}
